@@ -51,7 +51,8 @@ void respond(StreamSink& output, bool include_checksum, const char * fmt, TArgs&
     }
     /** ADDED FROM DOGGO */
     output.process_bytes((const uint8_t*)"\n", 1, nullptr);
-    /** ADDED FROM DOGGO */
+    /** ADDED FROM DOGGO */ 
+    // In v0.4.10, it is 'output.process_bytes((const uint8_t*)"\r\n", 2, nullptr);'
 }
 
 /** ADDED FROM DOGGO */
