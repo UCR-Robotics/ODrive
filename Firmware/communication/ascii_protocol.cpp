@@ -574,6 +574,7 @@ void ASCII_protocol_parse_stream(const uint8_t* buffer, size_t len, StreamSink& 
     }
 }
 
+// In both v0.4.1 and v0.4.11, the function below is named 'ASCII_protocol_parse_stream'
 void ASCII_protocol_parse_stream_deprecated(const uint8_t* buffer, size_t len, StreamSink& response_channel) {
     static uint8_t parse_buffer[MAX_LINE_LENGTH];
     static bool read_active = true;
