@@ -194,7 +194,144 @@ bool Controller::update(float pos_estimate, float vel_estimate, float* current_s
         }
         vel_setpoint_ += step;
     }
+    
+// Keran: Added PD control and Dual motor PD control.
+/****************************************************/
+/** ADDED FROM DOGGO */
+    
+    // PD control
+    float Iq = current_setpoint_;
 
+    if (config_.control_mode == CTRL_MODE_POSITION_CONTROL) {
+        float pos_err = pos_setpoint_ - pos_estimate;
+        Iq += config_.pos_gain * pos_err;
+
+        float vel_err = 0 - vel_estimate;
+        Iq += config_.vel_gain * vel_err;
+    }
+
+    // Coupled PD control
+    // The convention we're using is that alpha and beta are measured from the downward vertical
+    // both increasing in the CCW direction.
+    if (config_.control_mode == CTRL_MODE_COUPLED_CONTROL) {
+        float alpha = encoder_to_rad(axes[0]->encoder_.pos_estimate_) + M_PI/2.0f;
+        float beta = encoder_to_rad(axes[1]->encoder_.pos_estimate_) - M_PI/2.0f; // Assumes legs started 180 apart
+        float d_alpha = encoder_to_rad(axes[0]->encoder_.pll_vel_);
+        float d_beta = encoder_to_rad(axes[1]->encoder_.pll_vel_);
+
+        float theta = alpha/2.0f + beta/2.0f;
+        float gamma = alpha/2.0f - beta/2.0f;
+
+        theta_ = theta;
+        gamma_ = gamma;
+
+        float d_theta = d_alpha/2.0f + d_beta/2.0f;
+        float d_gamma = d_alpha/2.0f - d_beta/2.0f;
+
+        float p_term_theta = config_.kp_theta * (theta_setpoint_ - theta);
+        float d_term_theta = config_.kd_theta * (0.0f - d_theta);
+
+        float p_term_gamma = config_.kp_gamma * (gamma_setpoint_ - gamma);
+        float d_term_gamma = config_.kd_gamma * (0.0f - d_gamma);
+
+        float tau_theta = p_term_theta + d_term_theta;
+        float tau_gamma = p_term_gamma + d_term_gamma;
+
+        axes[0]->controller_.current_setpoint_ = tau_theta*0.5f + tau_gamma*0.5f;
+        axes[1]->controller_.current_setpoint_ = tau_theta*0.5f - tau_gamma*0.5f;
+
+        Iq = current_setpoint_;
+    } else if(config_.control_mode == CTRL_MODE_XY_CONTROL) { //change condition for now...
+///////////////////////////////////////////////////////////////////////////////////
+//current theta, gamma
+        float alpha = encoder_to_rad(axes[0]->encoder_.pos_estimate_) + M_PI/2.0f;
+        float beta = encoder_to_rad(axes[1]->encoder_.pos_estimate_) - M_PI/2.0f; // Assumes legs started 180 apart
+        float d_alpha = encoder_to_rad(axes[0]->encoder_.pll_vel_);
+        float d_beta = encoder_to_rad(axes[1]->encoder_.pll_vel_);
+
+        float theta = alpha/2.0f + beta/2.0f;
+        float gamma = alpha/2.0f - beta/2.0f;
+        theta_ = theta;
+        gamma_ = gamma;
+
+        float d_theta = d_alpha/2.0f + d_beta/2.0f;
+        float d_gamma = d_alpha/2.0f - d_beta/2.0f;
+
+        //leg parameters
+        float L1 = 0.09f; // upper leg length (m)
+        float L2 = 0.162f; // lower leg length (m)
+        float L = L1*cos(gamma) + sqrt(L2*L2 - L1*L1*sin(gamma)*sin(gamma));
+
+        // jacobian stuff
+        float dradius_dgamma = -L1*sin(gamma) - (L1*L1*sin(gamma)*cos(gamma))/(sqrt(L2*L2 - L1*L1*sin(gamma)*sin(gamma)));
+        float dx_dtheta = L*cos(theta);
+        float dy_dtheta = -L*sin(theta);
+        float dx_dradius = sin(theta);
+        float dy_dradius = cos(theta);
+
+        float jacobian[2][2] = {
+                                  {dx_dtheta, dx_dradius*dradius_dgamma},
+                                  {dy_dtheta, dy_dradius*dradius_dgamma},
+                                };
+
+        J00 = jacobian[0][0];
+        J01 = jacobian[0][1];
+        J10 = jacobian[1][0];
+        J11 = jacobian[1][1];
+
+        //current x, y
+        float x = L * sin(theta); //How to get leg_direction here?
+        float y = L * cos(theta);
+
+        x_pos_ = x;
+        y_pos_ = y;
+
+        float d_x = jacobian[0][1]*d_gamma + jacobian[0][0]*d_theta; //derivative of x wrt time
+        float d_y = jacobian[1][1]*d_gamma + jacobian[1][0]*d_theta;
+
+        //x, y setpoints set manually here if doing x compliance, y setpoint should be same as curr y
+        // and vice versa.
+        float x_sp = x_setpoint_; //make x set point 0
+        float y_sp = y_setpoint_; //
+
+        //gains wanted for x and y
+        //when doing x compliance, set y kp's and kd's to 0... no desire to move in those directions
+        float kp_x = config_.kp_x;
+        float kp_y = config_.kp_y;
+        float kd_x = config_.kd_x;
+        float kd_y = config_.kd_y;
+
+        float p_term_x = kp_x * (x_sp - x);
+        float d_term_x = kd_x * (0.0f - d_x);
+
+        float p_term_y = kp_y * (y_sp - y);
+        float d_term_y = kd_y * (0.0f - d_y);
+
+        float force_x = p_term_x + d_term_x;
+        float force_y = p_term_y + d_term_y;
+        force_x_ = force_x;
+        force_y_ = force_y;
+        
+
+        float tau_theta = force_x * jacobian[0][0] + force_y * jacobian[1][0]; //mutliplying by jacobian transpose
+        float tau_gamma = force_x * jacobian[0][1] + force_y * jacobian[1][1];
+        tau_theta_ = tau_theta;
+        tau_gamma_ = tau_gamma;
+
+        axes[0]->controller_.current_setpoint_ = tau_theta*0.5f + tau_gamma*0.5f;
+        axes[1]->controller_.current_setpoint_ = tau_theta*0.5f - tau_gamma*0.5f;
+
+        Iq = current_setpoint_;
+///////////////////////////////////////////////////////////////////////////////////
+    }
+    
+/** ADDED FROM DOGGO */
+/****************************************************/
+    
+
+// Keran: Commented out Position Control and Velocity Control part.
+/****************************************************/
+/*
     // Position control
     // TODO Decide if we want to use encoder or pll position here
     float vel_des = vel_setpoint_;
@@ -230,7 +367,9 @@ bool Controller::update(float pos_estimate, float vel_estimate, float* current_s
 
     // Velocity control
     float Iq = current_setpoint_;
-
+*/
+/****************************************************/
+    
     // Anti-cogging is enabled after calibration
     // We get the current position and apply a current feed-forward
     // ensuring that we handle negative encoder positions properly (-1 == motor->encoder.encoder_cpr - 1)
@@ -238,6 +377,9 @@ bool Controller::update(float pos_estimate, float vel_estimate, float* current_s
         Iq += anticogging_.cogging_map[mod(static_cast<int>(anticogging_pos), axis_->encoder_.config_.cpr)];
     }
 
+// Keran: Commented out Position Control and Velocity Control part.
+/****************************************************/
+/*
     float v_err = vel_des - vel_estimate;
     if (config_.control_mode >= CTRL_MODE_VELOCITY_CONTROL) {
         Iq += config_.vel_gain * v_err;
@@ -245,7 +387,9 @@ bool Controller::update(float pos_estimate, float vel_estimate, float* current_s
 
     // Velocity integral action before limiting
     Iq += vel_integrator_current_;
-
+*/
+/****************************************************/
+    
     // Current limiting
     bool limited = false;
     float Ilim = axis_->motor_.effective_current_lim();
@@ -257,7 +401,10 @@ bool Controller::update(float pos_estimate, float vel_estimate, float* current_s
         limited = true;
         Iq = -Ilim;
     }
-
+    
+// Keran: Commented out Position Control and Velocity Control part.
+/****************************************************/
+/*
     // Velocity integrator (behaviour dependent on limiting)
     if (config_.control_mode < CTRL_MODE_VELOCITY_CONTROL) {
         // reset integral if not in use
@@ -270,7 +417,9 @@ bool Controller::update(float pos_estimate, float vel_estimate, float* current_s
             vel_integrator_current_ += (config_.vel_integrator_gain * current_meas_period) * v_err;
         }
     }
-
+*/
+/****************************************************/
+    
     if (current_setpoint_output) *current_setpoint_output = Iq;
     return true;
 }
