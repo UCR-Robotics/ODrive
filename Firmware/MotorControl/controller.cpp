@@ -67,6 +67,61 @@ void Controller::move_incremental(float displacement, bool from_goal_point = tru
     }
 }
 
+// Keran: Added Functions for Dual Motor Control 
+/****************************************************/
+/** ADDED FROM DOGGO */
+
+void Controller::set_coupled_setpoints(float theta_setpoint, float gamma_setpoint) {
+    theta_setpoint_ = theta_setpoint;
+    gamma_setpoint_ = gamma_setpoint;
+    config_.control_mode = CTRL_MODE_COUPLED_CONTROL;
+#ifdef DEBUG_PRINT
+    printf("COUPLED_CONTROL %3.3f %3.3f\n", theta_setpoint_, gamma_setpoint_);
+#endif
+}
+
+/**
+ * Set gains for coupled PD control
+ */
+void Controller::set_coupled_gains(float kp_theta, float kd_theta, float kp_gamma, float kd_gamma) {
+    config_.kp_theta = kp_theta;
+    config_.kd_theta = kd_theta;
+    config_.kp_gamma = kp_gamma;
+    config_.kd_gamma = kd_gamma;
+    config_.control_mode = CTRL_MODE_COUPLED_CONTROL;
+#ifdef DEBUG_PRINT
+    printf("COUPLED_CONTROL %3.3f %3.3f %3.3f %3.3f\n", kp_theta, kd_theta, kp_gamma, kd_gamma);
+#endif
+}
+
+void Controller::set_xy_setpoints(float x_setpoint, float y_setpoint) {
+  x_setpoint_ = x_setpoint;
+  y_setpoint_ = y_setpoint;
+  config_.control_mode = CTRL_MODE_XY_CONTROL;
+#ifdef DEBUG_PRINT
+    printf("XY_CONTROL %3.3f %3.3f\n", x_setpoint_, y_setpoint_);
+#endif
+}
+
+void Controller::set_xy_gains(float kp_x, float kd_x, float kp_y, float kd_y) {
+  config_.kp_x = kp_x;
+  config_.kd_x = kd_x;
+  config_.kp_y = kp_y;
+  config_.kd_y = kd_y;
+  config_.control_mode = CTRL_MODE_XY_CONTROL;
+  #ifdef DEBUG_PRINT
+    printf("XY_CONTROL %3.3f %3.3f %3.3f %3.3f\n", kp_x, kd_x, kp_y, kd_y);
+  #endif
+}
+
+float Controller::encoder_to_rad(float x) {
+    return x / (axis_->encoder_.config_.cpr * config_.gear_ratio) * 2.0f * M_PI;
+}
+
+/** ADDED FROM DOGGO */
+/****************************************************/
+
+
 void Controller::start_anticogging_calibration() {
     // Ensure the cogging map was correctly allocated earlier and that the motor is capable of calibrating
     if (anticogging_.cogging_map != NULL && axis_->error_ == Axis::ERROR_NONE) {
