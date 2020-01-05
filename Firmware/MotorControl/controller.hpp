@@ -201,7 +201,7 @@ public:
                 make_protocol_property("vel_limit", &config_.vel_limit),
                 make_protocol_property("vel_limit_tolerance", &config_.vel_limit_tolerance),
                 make_protocol_property("vel_ramp_rate", &config_.vel_ramp_rate),
-                make_protocol_property("setpoints_in_cpr", &config_.setpoints_in_cpr)
+                make_protocol_property("setpoints_in_cpr", &config_.setpoints_in_cpr),
 /** ADDED FROM DOGGO */                                 
                 make_protocol_property("kp_theta", &config_.kp_theta),
                 make_protocol_property("kd_theta", &config_.kd_theta),
