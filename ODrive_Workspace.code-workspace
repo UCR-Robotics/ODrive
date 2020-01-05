@@ -56,6 +56,8 @@
 			"condition_variable": "cpp",
 			"future": "cpp",
 			"arm_math.h": "c"
+			"unordered_map": "cpp",
+			"cmath": "cpp"		
 		}
 	}
 }
