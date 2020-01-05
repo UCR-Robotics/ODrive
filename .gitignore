@@ -41,3 +41,14 @@ tup.config
 /_site
 /.bundle
 
+// Keran: Added Code from Doggo 
+/****************************************************/
+/** ADDED FROM DOGGO */
+
+bin
+tools/.DS_Store
+tools/.vscode/DONTUSElaunch.json
+
+
+/** ADDED FROM DOGGO */
+/****************************************************/
