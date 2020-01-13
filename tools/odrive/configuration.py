@@ -2,6 +2,7 @@
 import json
 import os
 import tempfile
+import odrive
 import fibre.remote_object
 from odrive.utils import OperationAbortedException, yes_no_prompt
 
