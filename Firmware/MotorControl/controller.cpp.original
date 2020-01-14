@@ -71,30 +71,26 @@ void Controller::move_incremental(float displacement, bool from_goal_point = tru
 /****************************************************/
 /** ADDED FROM DOGGO */
 
-void Controller::set_coupled_setpoints(float alpha_setpoint, float beta_setpoint) {
-//Doggo: void Controller::set_coupled_setpoints(float theta_setpoint, float gamma_setpoint) {
-    alpha_setpoint_ = alpha_setpoint;//Doggo: theta_setpoint_ = theta_setpoint;
-    beta_setpoint_ = beta_setpoint; //Doggo: gamma_setpoint_ = gamma_setpoint;
+void Controller::set_coupled_setpoints(float theta_setpoint, float gamma_setpoint) {
+    theta_setpoint_ = theta_setpoint;
+    gamma_setpoint_ = gamma_setpoint;
     config_.control_mode = CTRL_MODE_COUPLED_CONTROL;
 #ifdef DEBUG_PRINT
-    printf("COUPLED_CONTROL %3.3f %3.3f\n", alpha_setpoint_, beta_setpoint_);
-    //Doggo: printf("COUPLED_CONTROL %3.3f %3.3f\n", theta_setpoint_, gamma_setpoint_);
+    printf("COUPLED_CONTROL %3.3f %3.3f\n", theta_setpoint_, gamma_setpoint_);
 #endif
 }
 
 /**
  * Set gains for coupled PD control
  */
-void Controller::set_coupled_gains(float kp_alpha, float kd_alpha, float kp_beta, float kd_beta) {
-//Doggo: void Controller::set_coupled_gains(float kp_theta, float kd_theta, float kp_gamma, float kd_gamma) {
-    config_.kp_alpha = kp_alpha; //Doggo: config_.kp_theta = kp_theta;
-    config_.kd_alpha = kd_alpha; //Doggo: config_.kd_theta = kd_theta;
-    config_.kp_beta = kp_beta; //Doggo: config_.kp_gamma = kp_gamma;
-    config_.kd_beta = kd_beta; //Doggo: config_.kd_gamma = kd_gamma;
+void Controller::set_coupled_gains(float kp_theta, float kd_theta, float kp_gamma, float kd_gamma) {
+    config_.kp_theta = kp_theta;
+    config_.kd_theta = kd_theta;
+    config_.kp_gamma = kp_gamma;
+    config_.kd_gamma = kd_gamma;
     config_.control_mode = CTRL_MODE_COUPLED_CONTROL;
 #ifdef DEBUG_PRINT
-    printf("COUPLED_CONTROL %3.3f %3.3f %3.3f %3.3f\n", kp_alpha, kd_alpha, kp_beta, kd_beta);
-    //Doggo: printf("COUPLED_CONTROL %3.3f %3.3f %3.3f %3.3f\n", kp_theta, kd_theta, kp_gamma, kd_gamma);
+    printf("COUPLED_CONTROL %3.3f %3.3f %3.3f %3.3f\n", kp_theta, kd_theta, kp_gamma, kd_gamma);
 #endif
 }
 
@@ -215,64 +211,11 @@ bool Controller::update(float pos_estimate, float vel_estimate, float* current_s
     }
 
     // Coupled PD control
-    //Doggo: The convention we're using is that alpha and beta are measured from the downward vertical
-    //Doggo: both increasing in the CCW direction.
-    //Keran: In CLL, we're using is that alpha and beta are measured from the downward vertical axis,
-    //Keran: increasing CCW and CW respectively.
+    // The convention we're using is that alpha and beta are measured from the downward vertical
+    // both increasing in the CCW direction.
     if (config_.control_mode == CTRL_MODE_COUPLED_CONTROL) {
-        //Doggo: float alpha = encoder_to_rad(axes[0]->encoder_.pos_estimate_) + M_PI/2.0f;
-        // Doggo: float beta = encoder_to_rad(axes[1]->encoder_.pos_estimate_) - M_PI/2.0f; // Assumes legs started 180 apart
-        float alpha = encoder_to_rad(axes[0]->encoder_.pos_estimate_) + M_PI/2.0f; // Need to verify init pos
-        float beta = encoder_to_rad(axes[1]->encoder_.pos_estimate_) - M_PI/2.0f; // Need to verify init pos
-
-        // Gustavo: Original from doggo, changed pll_vel to vel_estimate
-        // *******
-        //Doggo: float d_alpha = encoder_to_rad(axes[0]->encoder_.pll_vel_);
-        //Doggo: float d_beta = encoder_to_rad(axes[1]->encoder_.pll_vel_);
-        // *******
-        float d_alpha = encoder_to_rad(axes[0]->encoder_.vel_estimate_);
-        float d_beta = encoder_to_rad(axes[1]->encoder_.vel_estimate_);
-
-        //Doggo: float theta = alpha/2.0f + beta/2.0f;
-        //DOggo: float gamma = alpha/2.0f - beta/2.0f;
-
-        //Doggo: theta_ = theta;
-        //Doggo: gamma_ = gamma;
-        alpha_ = alpha;
-        beta_ = beta;
-
-        //Doggo: float d_theta = d_alpha/2.0f + d_beta/2.0f;
-        //Doggo: float d_gamma = d_alpha/2.0f - d_beta/2.0f;
-
-        //Doggo: float p_term_theta = config_.kp_theta * (theta_setpoint_ - theta);
-        //Doggo: float d_term_theta = config_.kd_theta * (0.0f - d_theta);
-        float p_term_alpha = config_.kp_alpha * (alpha_setpoint_ - alpha);
-        float d_term_alpha = config_.kd_alpha * (0.0f - d_alpha);
-
-        //Doggo: float p_term_gamma = config_.kp_gamma * (gamma_setpoint_ - gamma);
-        //DOggo: float d_term_gamma = config_.kd_gamma * (0.0f - d_gamma);
-        float p_term_beta = config_.kp_beta * (beta_setpoint_ - beta);
-        float d_term_beta = config_.kd_beta * (0.0f - d_beta);
-
-        //Doggo: float tau_theta = p_term_theta + d_term_theta;
-        //Doggo: float tau_gamma = p_term_gamma + d_term_gamma;
-//Keran: NO feedforward term, pure pos PD control.        
-        float tau_alpha = p_term_alpha + d_term_alpha;
-        float tau_beta = p_term_beta + d_term_beta;
-
-        //Doggo: axes[0]->controller_.current_setpoint_ = tau_theta*0.5f + tau_gamma*0.5f;
-        //Doggo: axes[1]->controller_.current_setpoint_ = tau_theta*0.5f - tau_gamma*0.5f;
-        axes[0]->controller_.current_setpoint_ = tau_alpha;
-        axes[1]->controller_.current_setpoint_ = tau_beta;
-
-        Iq = current_setpoint_;
-    } else if(config_.control_mode == CTRL_MODE_XY_CONTROL) { //change condition for now...
-///////////////////////////////////////////////////////////////////////////////////
-//current theta, gamma
-        //Doggo: float alpha = encoder_to_rad(axes[0]->encoder_.pos_estimate_) + M_PI/2.0f;
-        //Doggo: float beta = encoder_to_rad(axes[1]->encoder_.pos_estimate_) - M_PI/2.0f; // Assumes legs started 180 apart
-        float alpha = encoder_to_rad(axes[0]->encoder_.pos_estimate_) + M_PI/2.0f; // Need to verify init pos
-        float beta = encoder_to_rad(axes[1]->encoder_.pos_estimate_) - M_PI/2.0f; // Need to verify init pos
+        float alpha = encoder_to_rad(axes[0]->encoder_.pos_estimate_) + M_PI/2.0f;
+        float beta = encoder_to_rad(axes[1]->encoder_.pos_estimate_) - M_PI/2.0f; // Assumes legs started 180 apart
         
         // Gustavo: Original from doggo, changed pll_vel to vel_estimate
         // *******
@@ -282,46 +225,65 @@ bool Controller::update(float pos_estimate, float vel_estimate, float* current_s
         float d_alpha = encoder_to_rad(axes[0]->encoder_.vel_estimate_);
         float d_beta = encoder_to_rad(axes[1]->encoder_.vel_estimate_);
 
-        //Doggo: float theta = alpha/2.0f + beta/2.0f;
-        //DOggo: float gamma = alpha/2.0f - beta/2.0f;
-        
-        //Doggo: theta_ = theta;
-        //Doggo: gamma_ = gamma;
-        alpha_ = alpha;
-        beta_ = beta;
+        float theta = alpha/2.0f + beta/2.0f;
+        float gamma = alpha/2.0f - beta/2.0f;
 
-        //Doggo: float d_theta = d_alpha/2.0f + d_beta/2.0f;
-        //Doggo: float d_gamma = d_alpha/2.0f - d_beta/2.0f;
+        theta_ = theta;
+        gamma_ = gamma;
+
+        float d_theta = d_alpha/2.0f + d_beta/2.0f;
+        float d_gamma = d_alpha/2.0f - d_beta/2.0f;
+
+        float p_term_theta = config_.kp_theta * (theta_setpoint_ - theta);
+        float d_term_theta = config_.kd_theta * (0.0f - d_theta);
+
+        float p_term_gamma = config_.kp_gamma * (gamma_setpoint_ - gamma);
+        float d_term_gamma = config_.kd_gamma * (0.0f - d_gamma);
+
+        float tau_theta = p_term_theta + d_term_theta;
+        float tau_gamma = p_term_gamma + d_term_gamma;
+
+        axes[0]->controller_.current_setpoint_ = tau_theta*0.5f + tau_gamma*0.5f;
+        axes[1]->controller_.current_setpoint_ = tau_theta*0.5f - tau_gamma*0.5f;
+
+        Iq = current_setpoint_;
+    } else if(config_.control_mode == CTRL_MODE_XY_CONTROL) { //change condition for now...
+///////////////////////////////////////////////////////////////////////////////////
+//current theta, gamma
+        float alpha = encoder_to_rad(axes[0]->encoder_.pos_estimate_) + M_PI/2.0f;
+        float beta = encoder_to_rad(axes[1]->encoder_.pos_estimate_) - M_PI/2.0f; // Assumes legs started 180 apart
+        
+        // Gustavo: Original from doggo, changed pll_vel to vel_estimate
+        // *******
+        // float d_alpha = encoder_to_rad(axes[0]->encoder_.pll_vel_);
+        // float d_beta = encoder_to_rad(axes[1]->encoder_.pll_vel_);
+        // *******
+        float d_alpha = encoder_to_rad(axes[0]->encoder_.vel_estimate_);
+        float d_beta = encoder_to_rad(axes[1]->encoder_.vel_estimate_);
+
+        float theta = alpha/2.0f + beta/2.0f;
+        float gamma = alpha/2.0f - beta/2.0f;
+        theta_ = theta;
+        gamma_ = gamma;
+
+        float d_theta = d_alpha/2.0f + d_beta/2.0f;
+        float d_gamma = d_alpha/2.0f - d_beta/2.0f;
 
         //leg parameters
-        //Doggo: float L1 = 0.09f; // upper leg length (m)
-        //Doggo: float L2 = 0.162f; // lower leg length (m)
-        //Doggo: float L = L1*cos(gamma) + sqrt(L2*L2 - L1*L1*sin(gamma)*sin(gamma));
-        float L1 = 0.19f; // upper leg length (m)
-        float L2 = 0.19f; // lower leg length (m)
-        float L0 = L1 + L2; // virtual leg spring init length. TODO: what are other options?
-        float L = sqrt(L1*L1 + L2*L2 + 2*L1*L2*cos(alpha+beta));
+        float L1 = 0.09f; // upper leg length (m)
+        float L2 = 0.162f; // lower leg length (m)
+        float L = L1*cos(gamma) + sqrt(L2*L2 - L1*L1*sin(gamma)*sin(gamma));
 
         // jacobian stuff
-        /*Doggo: 
         float dradius_dgamma = -L1*sin(gamma) - (L1*L1*sin(gamma)*cos(gamma))/(sqrt(L2*L2 - L1*L1*sin(gamma)*sin(gamma)));
         float dx_dtheta = L*cos(theta);
         float dy_dtheta = -L*sin(theta);
         float dx_dradius = sin(theta);
-        float dy_dradius = cos(theta); */
-//Keran: here the jacobian mtx is d[x;y]/d[alpha; beta]        
-        float dx_dalpha = L1*cos(alpha);
-        float dx_dbeta = -L2*cos(beta);
-        float dy_dalpha = -L1*sin(alpha);
-        float dy_dbeta = -L2*sin(beta);
-        /*Doggo:
+        float dy_dradius = cos(theta);
+
         float jacobian[2][2] = {
                                   {dx_dtheta, dx_dradius*dradius_dgamma},
                                   {dy_dtheta, dy_dradius*dradius_dgamma},
-                                }; */
-        float jacobian[2][2] = {
-                                  {dx_dalpha, dx_dbeta},
-                                  {dy_dalpha, dy_dbeta},
                                 };
 
         J00 = jacobian[0][0];
@@ -330,19 +292,14 @@ bool Controller::update(float pos_estimate, float vel_estimate, float* current_s
         J11 = jacobian[1][1];
 
         //current x, y
-        //Doggo: float x = L * sin(theta); //How to get leg_direction here?
-        //DOggo: float y = L * cos(theta);
-        float x = L1*sin(alpha) - L2*sin(beta);
-        float y = L1*cos(alpha) + L2*cos(beta);
-        float theta = atan(x/y); //Keran: TODO: limit theta range
+        float x = L * sin(theta); //How to get leg_direction here?
+        float y = L * cos(theta);
 
         x_pos_ = x;
         y_pos_ = y;
 
-        //Doggo: float d_x = jacobian[0][1]*d_gamma + jacobian[0][0]*d_theta; //derivative of x wrt time
-        //Doggo: float d_y = jacobian[1][1]*d_gamma + jacobian[1][0]*d_theta;
-        float d_x = jacobian[0][1]*d_beta + jacobian[0][0]*d_alpha; //derivative of x wrt time
-        float d_y = jacobian[1][1]*d_beta + jacobian[1][0]*d_alpha;
+        float d_x = jacobian[0][1]*d_gamma + jacobian[0][0]*d_theta; //derivative of x wrt time
+        float d_y = jacobian[1][1]*d_gamma + jacobian[1][0]*d_theta;
 
         //x, y setpoints set manually here if doing x compliance, y setpoint should be same as curr y
         // and vice versa.
@@ -355,9 +312,6 @@ bool Controller::update(float pos_estimate, float vel_estimate, float* current_s
         float kp_y = config_.kp_y;
         float kd_x = config_.kd_x;
         float kd_y = config_.kd_y;
-//Keran: Add virtual spring coeff for SLIP feedforward term
-        float spring_coeff = config_.spring_coeff;
-        float lambda = config_.k_spring_coeff;
 
         float p_term_x = kp_x * (x_sp - x);
         float d_term_x = kd_x * (0.0f - d_x);
@@ -365,32 +319,19 @@ bool Controller::update(float pos_estimate, float vel_estimate, float* current_s
         float p_term_y = kp_y * (y_sp - y);
         float d_term_y = kd_y * (0.0f - d_y);
 
-//Keran: Feedforward term from SLIP model
-        float ff_term_x = lambda*spring_coeff*(L0 - L)*sin(theta);
-        float ff_term_y = lambda*spring_coeff*(L0 - L)*cos(theta);
-
-        //Doggo: float force_x = p_term_x + d_term_x;
-        //DOggo: float force_y = p_term_y + d_term_y;
-        float force_x = p_term_x + d_term_x + ff_term_x;
-        float force_y = p_term_y + d_term_y + ff_term_y;
+        float force_x = p_term_x + d_term_x;
+        float force_y = p_term_y + d_term_y;
         force_x_ = force_x;
         force_y_ = force_y;
         
 
-        //Doggo: float tau_theta = force_x * jacobian[0][0] + force_y * jacobian[1][0]; //mutliplying by jacobian transpose
-        //Doggo: float tau_gamma = force_x * jacobian[0][1] + force_y * jacobian[1][1];
-        //Doggo: tau_theta_ = tau_theta;
-        //Doggo: tau_gamma_ = tau_gamma;
-        float tau_alpha = force_x * jacobian[0][0] + force_y * jacobian[1][0]; //mutliplying by jacobian transpose
-        float tau_beta = force_x * jacobian[0][1] + force_y * jacobian[1][1];
-        tau_theta_ = tau_alpha;
-        tau_gamma_ = tau_beta;
-        
+        float tau_theta = force_x * jacobian[0][0] + force_y * jacobian[1][0]; //mutliplying by jacobian transpose
+        float tau_gamma = force_x * jacobian[0][1] + force_y * jacobian[1][1];
+        tau_theta_ = tau_theta;
+        tau_gamma_ = tau_gamma;
 
-        //Doggo: axes[0]->controller_.current_setpoint_ = tau_theta*0.5f + tau_gamma*0.5f;
-        //Doggo: axes[1]->controller_.current_setpoint_ = tau_theta*0.5f - tau_gamma*0.5f;
-        axes[0]->controller_.current_setpoint_ = tau_alpha;
-        axes[1]->controller_.current_setpoint_ = tau_beta;
+        axes[0]->controller_.current_setpoint_ = tau_theta*0.5f + tau_gamma*0.5f;
+        axes[1]->controller_.current_setpoint_ = tau_theta*0.5f - tau_gamma*0.5f;
 
         Iq = current_setpoint_;
 ///////////////////////////////////////////////////////////////////////////////////
