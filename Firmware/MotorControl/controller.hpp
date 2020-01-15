@@ -47,15 +47,23 @@ public:
 // Keran: Added Config Variables for Dual Motor Control 
 /****************************************************/
 /** ADDED FROM DOGGO */
-        float kp_theta = 0.04f * 6000.0f / (2.0f * M_PI);
+        float kp_theta = 0.04f * 6000.0f / (2.0f * M_PI); //Q: why choose this value?
         float kd_theta = 5.0f / 10000.0f * 6000.0f / (2.0f * M_PI);
         float kp_gamma = 0.01f * 6000.0f / (2.0f * M_PI);
         float kd_gamma = 5.0f / 10000.0f * 6000.0f / (2.0f * M_PI);
+// Keran: CLL PD controller coeffs are kp_alpha, kd_alpha, kp_beta, kd_beta
+        float kp_alpha = 0.04f * 6000.0f / (2.0f * M_PI);
+        float kd_alpha = 5.0f / 10000.0f * 6000.0f / (2.0f * M_PI);
+        float kp_beta = 0.01f * 6000.0f / (2.0f * M_PI);
+        float kd_beta = 5.0f / 10000.0f * 6000.0f / (2.0f * M_PI);
 
         float kp_x = 0;
         float kd_x = 0;
         float kp_y = 0;
         float kd_y = 0;
+//Keran: Add virtual spring coeff for SLIP feedforward term
+        float spring_coeff = 0; //TODO: pick value based on real springs
+        float k_spring_coeff = 0;
 
         float gear_ratio = 3.0;
 /** ADDED FROM DOGGO */
@@ -79,8 +87,10 @@ public:
 // Keran: Added Functions for Dual Motor Control 
 /****************************************************/
 /** ADDED FROM DOGGO */
-    void set_coupled_setpoints(float theta_setpoint, float gamma_setpoint);
-    void set_coupled_gains(float kp_theta, float kd_theta, float kp_gamma, float kd_gamma);
+    //Doggo: void set_coupled_setpoints(float theta_setpoint, float gamma_setpoint);
+    void set_coupled_setpoints(float alpha_setpoint, float beta_setpoint);
+    //Doggo: void set_coupled_gains(float kp_theta, float kd_theta, float kp_gamma, float kd_gamma);
+    void set_coupled_gains(float kp_alpha, float kd_alpha, float kp_beta, float kd_beta);
     void set_xy_setpoints(float x_setpoint, float y_setpoint);
     void set_xy_gains(float kp_x, float kd_x, float kp_y, float kd_y);
     float encoder_to_rad(float x);
@@ -131,6 +141,9 @@ public:
     float theta_ = 0.0f;
     float gamma_ = 1.57f;
 /** ADDED FROM DOGGO */
+//Keran: Use alpha_ & beta_ for comm instead of theta and gamma
+    float alpha_ = 0.0f;
+    float beta_ = 1.57f;
     
     // float vel_setpoint = 800.0f; <sensorless example>
     float vel_integrator_current_ = 0.0f;  // [A]
@@ -145,6 +158,9 @@ public:
 /** ADDED FROM DOGGO */
     float theta_setpoint_ = 0.0f;
     float gamma_setpoint_ = M_PI/2.0f;
+//Keran: CLL variables are alpha & beta instead of theta & gamma
+    float alpha_setpoint_ = 0.0f;
+    float beta_setpoint_  = 0.0f;
 
     float x_setpoint_ = 0.0f;
     float y_setpoint_ = 0.13f;
@@ -172,8 +188,10 @@ public:
             make_protocol_property("vel_ramp_target", &vel_ramp_target_),
             make_protocol_property("vel_ramp_enable", &vel_ramp_enable_),
 /** ADDED FROM DOGGO */            
-            make_protocol_property("theta_setpoint", &theta_setpoint_),
-            make_protocol_property("gamma_setpoint", &gamma_setpoint_),
+            //Doggo: make_protocol_property("theta_setpoint", &theta_setpoint_),
+            //Doggo: make_protocol_property("gamma_setpoint", &gamma_setpoint_),
+            make_protocol_property("alpha_setpoint", &alpha_setpoint_),
+            make_protocol_property("beta_setpoint", &beta_setpoint_),
             make_protocol_property("x_setpoint", &x_setpoint_),
             make_protocol_property("y_setpoint", &y_setpoint_),
             make_protocol_property("force_x", &force_x_),
@@ -203,10 +221,14 @@ public:
                 make_protocol_property("vel_ramp_rate", &config_.vel_ramp_rate),
                 make_protocol_property("setpoints_in_cpr", &config_.setpoints_in_cpr),
 /** ADDED FROM DOGGO */                                 
-                make_protocol_property("kp_theta", &config_.kp_theta),
+                /* Doggo: make_protocol_property("kp_theta", &config_.kp_theta),
                 make_protocol_property("kd_theta", &config_.kd_theta),
                 make_protocol_property("kp_gamma", &config_.kp_gamma),
-                make_protocol_property("kd_gamma", &config_.kd_gamma),
+                make_protocol_property("kd_gamma", &config_.kd_gamma),*/
+                make_protocol_property("kp_alpha", &config_.kp_alpha),
+                make_protocol_property("kd_alpha", &config_.kd_alpha),
+                make_protocol_property("kp_beta", &config_.kp_beta),
+                make_protocol_property("kd_beta", &config_.kd_beta),
                 make_protocol_property("kp_x", &config_.kp_x),
                 make_protocol_property("kd_x", &config_.kd_x),
                 make_protocol_property("kp_y", &config_.kp_y),
@@ -222,9 +244,12 @@ public:
             make_protocol_function("move_to_pos", *this, &Controller::move_to_pos, "pos_setpoint"),
             make_protocol_function("move_incremental", *this, &Controller::move_incremental, "displacement", "from_goal_point"),
 /** ADDED FROM DOGGO */
-            make_protocol_function("set_coupled_setpoints", *this, &Controller::set_coupled_setpoints,
+            /*Doggo:make_protocol_function("set_coupled_setpoints", *this, &Controller::set_coupled_setpoints,
                 "theta_setpoint",
-                "gamma_setpoint"),
+                "gamma_setpoint"),*/
+            make_protocol_function("set_coupled_setpoints", *this, &Controller::set_coupled_setpoints,
+                "alpha_setpoint",
+                "beta_setpoint"),
             make_protocol_function("set_xy_setpoints", *this, &Controller::set_xy_setpoints,
                 "x_setpoint",
                 "y_setpoint"),
